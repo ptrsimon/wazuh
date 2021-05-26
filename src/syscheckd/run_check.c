@@ -351,41 +351,23 @@ void start_daemon()
 }
 // LCOV_EXCL_STOP
 
-
-// LCOV_EXCL_START
 // Starting Real-time thread
-#ifdef WIN32
+#if defined WIN32
 DWORD WINAPI fim_run_realtime(__attribute__((unused)) void * args) {
-#else
-void * fim_run_realtime(__attribute__((unused)) void * args) {
-#endif
-
-#if defined INOTIFY_ENABLED || defined WIN32
-    static int _base_line = 0;
-#ifdef WIN32
     directory_t *dir_it;
-
+    int _base_line = 0;
     set_priority_windows_thread();
-#endif
-
-    while (1) {
-#ifdef WIN32
+    while (FOREVER()) {
         // Directories in Windows configured with real-time add recursive watches
         foreach_array(dir_it, syscheck.directories) {
             if (dir_it->options & REALTIME_ACTIVE) {
                 realtime_adddir(dir_it->path, dir_it, 0);
             }
         }
-#endif
 
         if (_base_line == 0) {
             _base_line = 1;
-
             if (syscheck.realtime != NULL) {
-                if (syscheck.realtime->queue_overflow) {
-                    realtime_sanitize_watch_map();
-                    syscheck.realtime->queue_overflow = false;
-                }
                 mdebug2(FIM_NUM_WATCHES, OSHash_Get_Elem_ex(syscheck.realtime->dirtb));
             }
         }
@@ -395,9 +377,31 @@ void * fim_run_realtime(__attribute__((unused)) void * args) {
             set_whodata_mode_changes();
         }
 #endif
+        if (syscheck.realtime && OSHash_Get_Elem_ex(syscheck.realtime->dirtb) > 0) {
+            log_realtime_status(1);
+
+            if (WaitForSingleObjectEx(syscheck.realtime->evt, SYSCHECK_WAIT * 1000, TRUE) == WAIT_FAILED) {
+                merror(FIM_ERROR_REALTIME_WAITSINGLE_OBJECT);
+            }
+        } else {
+            sleep(SYSCHECK_WAIT);
+        }
+    }
+}
+
+#elif defined INOTIFY_ENABLED
+void *fim_run_realtime(__attribute__((unused)) void * args) {
+    int _base_line = 0;
+    while (FOREVER()) {
+        if (_base_line == 0) {
+            _base_line = 1;
+            if (syscheck.realtime != NULL) {
+                mdebug2(FIM_NUM_WATCHES, OSHash_Get_Elem_ex(syscheck.realtime->dirtb));
+            }
+        }
+
         if (syscheck.realtime && (syscheck.realtime->fd >= 0)) {
             log_realtime_status(1);
-#ifdef INOTIFY_ENABLED
             struct timeval selecttime;
             fd_set rfds;
             int run_now = 0;
@@ -406,7 +410,7 @@ void * fim_run_realtime(__attribute__((unused)) void * args) {
             selecttime.tv_usec = 0;
 
             // zero-out the fd_set
-            FD_ZERO (&rfds);
+            FD_ZERO(&rfds);
             FD_SET(syscheck.realtime->fd, &rfds);
 
             run_now = select(syscheck.realtime->fd + 1,
@@ -423,17 +427,14 @@ void * fim_run_realtime(__attribute__((unused)) void * args) {
                 realtime_process();
             }
 
-#elif defined WIN32
-            if (WaitForSingleObjectEx(syscheck.realtime->evt, SYSCHECK_WAIT * 1000, TRUE) == WAIT_FAILED) {
-                merror(FIM_ERROR_REALTIME_WAITSINGLE_OBJECT);
-            }
-#endif
         } else {
             sleep(SYSCHECK_WAIT);
         }
     }
+}
 
 #else
+void * fim_run_realtime(__attribute__((unused)) void * args) {
     directory_t *dir_it;
 
     foreach_array(dir_it, syscheck.directories) {
@@ -444,11 +445,9 @@ void * fim_run_realtime(__attribute__((unused)) void * args) {
     }
 
     pthread_exit(NULL);
-#endif
-
 }
+#endif
 // LCOV_EXCL_STOP
-
 
 #ifdef WIN32
 void set_priority_windows_thread() {

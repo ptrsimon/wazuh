@@ -21,4 +21,6 @@ int __wrap_realtime_start();
  * @brief This function loads the expect and will_return calls for the wrapper of realtime_adddir
  */
 void expect_realtime_adddir_call(const char *path, int ret);
+
+void __wrap_realtime_process();
 #endif

@@ -297,7 +297,6 @@ void test_realtime_start_success(void **state) {
 
     assert_int_equal(ret, 0);
 #ifdef TEST_WINAGENT
-    assert_int_equal(syscheck.realtime->fd, 0);
     assert_ptr_equal(syscheck.realtime->evt, 123456);
 #endif
 }
@@ -1412,9 +1411,10 @@ void test_realtime_adddir_realtime_start_error(void **state) {
 void test_realtime_adddir_max_limit_reached(void **state) {
     int ret;
 
-    syscheck.realtime->fd = 1024;
-
     expect_function_call(__wrap_pthread_mutex_lock);
+
+    expect_value(__wrap_OSHash_Get_Elem_ex, self, syscheck.realtime->dirtb);
+    will_return(__wrap_OSHash_Get_Elem_ex, 1024);
 
     expect_string(__wrap__merror, formatted_msg,
         "(6616): Unable to add directory to real time monitoring: 'C:\\a\\path' - Maximum size permitted.");
@@ -1430,9 +1430,12 @@ void test_realtime_adddir_duplicate_entry(void **state) {
     win32rtfim rtlocald = { .dir = "C:\\a\\path" };
     int ret;
 
-    syscheck.realtime->fd = 128;
+
 
     expect_function_call(__wrap_pthread_mutex_lock);
+
+    expect_value(__wrap_OSHash_Get_Elem_ex, self, syscheck.realtime->dirtb);
+    will_return(__wrap_OSHash_Get_Elem_ex, 128);
 
     expect_value(__wrap_OSHash_Get_ex, self, syscheck.realtime->dirtb);
     expect_string(__wrap_OSHash_Get_ex, key, "C:\\a\\path");
@@ -1452,9 +1455,10 @@ void test_realtime_adddir_duplicate_entry_non_existent_directory_valid_handle(vo
     win32rtfim rtlocald = { .dir = "C:\\a\\path", .watch_status = FIM_RT_HANDLE_OPEN, .h = (HANDLE)1234 };
     int ret;
 
-    syscheck.realtime->fd = 128;
-
     expect_function_call(__wrap_pthread_mutex_lock);
+
+    expect_value(__wrap_OSHash_Get_Elem_ex, self, syscheck.realtime->dirtb);
+    will_return(__wrap_OSHash_Get_Elem_ex, 128);
 
     expect_value(__wrap_OSHash_Get_ex, self, syscheck.realtime->dirtb);
     expect_string(__wrap_OSHash_Get_ex, key, "C:\\a\\path");
@@ -1494,8 +1498,6 @@ void test_realtime_adddir_duplicate_entry_non_existent_directory_closed_handle(v
     rtlocald->watch_status = FIM_RT_HANDLE_CLOSED;
     rtlocald->h = (HANDLE)1234;
 
-    syscheck.realtime->fd = 128;
-
     expect_function_call(__wrap_pthread_mutex_lock);
 
     expect_value(__wrap_OSHash_Get_ex, self, syscheck.realtime->dirtb);
@@ -1526,9 +1528,10 @@ void test_realtime_adddir_duplicate_entry_non_existent_directory_invalid_handle(
     win32rtfim rtlocald = { .dir = "C:\\a\\path", .watch_status = FIM_RT_HANDLE_OPEN, .h = INVALID_HANDLE_VALUE };
     int ret;
 
-    syscheck.realtime->fd = 128;
-
     expect_function_call(__wrap_pthread_mutex_lock);
+
+    expect_value(__wrap_OSHash_Get_Elem_ex, self, syscheck.realtime->dirtb);
+    will_return(__wrap_OSHash_Get_Elem_ex, 128);
 
     expect_value(__wrap_OSHash_Get_ex, self, syscheck.realtime->dirtb);
     expect_string(__wrap_OSHash_Get_ex, key, "C:\\a\\path");
@@ -1547,9 +1550,10 @@ void test_realtime_adddir_duplicate_entry_non_existent_directory_invalid_handle(
 void test_realtime_adddir_handle_error(void **state) {
     int ret;
 
-    syscheck.realtime->fd = 128;
-
     expect_function_call(__wrap_pthread_mutex_lock);
+
+    expect_value(__wrap_OSHash_Get_Elem_ex, self, syscheck.realtime->dirtb);
+    will_return(__wrap_OSHash_Get_Elem_ex, 128);
 
     expect_value(__wrap_OSHash_Get_ex, self, syscheck.realtime->dirtb);
     expect_string(__wrap_OSHash_Get_ex, key, "C:\\a\\path");

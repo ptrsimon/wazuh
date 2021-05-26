@@ -38,6 +38,11 @@ void set_whodata_mode_changes();
 
 /* External 'static' functions prototypes */
 void fim_send_msg(char mq, const char * location, const char * msg);
+#ifdef WIN32
+DWORD WINAPI fim_run_realtime(__attribute__((unused)) void * args);
+#else
+void * fim_run_realtime(__attribute__((unused)) void * args);
+#endif
 
 #ifndef TEST_WINAGENT
 void fim_link_update(const char *new_path, directory_t *configuration);
@@ -111,10 +116,11 @@ static int setup_group(void ** state) {
         return -1;
     }
 
-    OSHash_Add_ex(syscheck.realtime->dirtb, "key", strdup("data"));
 
 #ifdef TEST_WINAGENT
     time_mock_value = 1;
+#else
+    OSHash_Add_ex(syscheck.realtime->dirtb, "key", strdup("data"));
 #endif
     return 0;
 }
@@ -219,6 +225,42 @@ static int teardown_max_fps(void **state) {
     return 0;
 }
 
+#ifdef TEST_WINAGENT
+
+typedef struct _win32rtfim {
+    HANDLE h;
+    OVERLAPPED overlap;
+
+    char *dir;
+    TCHAR buffer[65536];
+    unsigned int watch_status;
+} win32rtfim;
+
+extern void free_win32rtfim_data(win32rtfim *data);
+
+static int setup_hash(void **state) {
+    directory_t *dir_it;
+    win32rtfim *rtlocald;
+    rtlocald = calloc(1, sizeof(win32rtfim));
+    foreach_array(dir_it, syscheck.directories) {
+        if (dir_it->options & REALTIME_ACTIVE) {
+            OSHash_Add_ex(syscheck.realtime->dirtb, strdup(dir_it->path), rtlocald);
+        }
+    }
+    syscheck.realtime->evt = (HANDLE)234;
+    return 0;
+}
+
+static int teardown_hash(void **state) {
+    directory_t *dir_it;
+    foreach_array(dir_it, syscheck.directories) {
+        if (dir_it->options & REALTIME_ACTIVE) {
+            free_win32rtfim_data(OSHash_Delete_ex(syscheck.realtime->dirtb, dir_it->path));
+        }
+    }
+    return 0;
+}
+#endif
 /* tests */
 
 void test_fim_whodata_initialize(void **state)
@@ -304,7 +346,188 @@ void test_fim_send_msg_retry_error(void **state) {
     fim_send_msg(SYSCHECK_MQ, SYSCHECK, "test");
 }
 
-#ifdef TEST_WINAGENT
+#ifndef TEST_WINAGENT
+
+void test_fim_run_realtime_first_error(void **state) {
+    syscheck.realtime->fd = 4;
+    char debug_msg[OS_SIZE_128] = {0};
+    snprintf(debug_msg, OS_SIZE_128, FIM_NUM_WATCHES, 1);
+    will_return(__wrap_FOREVER, 1);
+
+
+    expect_string(__wrap__mdebug2, formatted_msg, debug_msg);
+
+    will_return(__wrap_select, -1);
+    expect_string(__wrap__merror, formatted_msg, FIM_ERROR_SELECT);
+
+    will_return(__wrap_FOREVER, 0);
+
+    fim_run_realtime(NULL);
+}
+
+void test_fim_run_realtime_first_timeout(void **state) {
+    syscheck.realtime->fd = 4;
+    char debug_msg[OS_SIZE_128] = {0};
+
+    snprintf(debug_msg, OS_SIZE_128, FIM_NUM_WATCHES, 1);
+    will_return(__wrap_FOREVER, 1);
+
+
+    expect_string(__wrap__mdebug2, formatted_msg, debug_msg);
+
+    will_return(__wrap_select, 0);
+
+    will_return(__wrap_FOREVER, 0);
+
+    fim_run_realtime(NULL);
+}
+
+void test_fim_run_realtime_first_sleep(void **state) {
+    syscheck.realtime->fd = -1;
+    char debug_msg[OS_SIZE_128] = {0};
+    snprintf(debug_msg, OS_SIZE_128, FIM_NUM_WATCHES, 1);
+    will_return(__wrap_FOREVER, 1);
+
+
+    expect_string(__wrap__mdebug2, formatted_msg, debug_msg);
+    expect_value(__wrap_sleep, seconds, SYSCHECK_WAIT);
+
+    will_return(__wrap_FOREVER, 0);
+
+    fim_run_realtime(NULL);
+}
+
+void test_fim_run_realtime_first_process(void **state) {
+    syscheck.realtime->fd = 4;
+    char debug_msg[OS_SIZE_128] = {0};
+    snprintf(debug_msg, OS_SIZE_128, FIM_NUM_WATCHES, 1);
+
+    will_return(__wrap_FOREVER, 1);
+
+    expect_string(__wrap__mdebug2, formatted_msg, debug_msg);
+
+    will_return(__wrap_select, 4);
+    expect_function_call(__wrap_realtime_process);
+    will_return(__wrap_FOREVER, 0);
+
+    fim_run_realtime(NULL);
+}
+
+void test_fim_run_realtime_process_after_timeout(void **state) {
+    syscheck.realtime->fd = 4;
+    char debug_msg[OS_SIZE_128] = {0};
+    snprintf(debug_msg, OS_SIZE_128, FIM_NUM_WATCHES, 1);
+    will_return(__wrap_FOREVER, 1);
+
+
+    expect_string(__wrap__mdebug2, formatted_msg, debug_msg);
+    will_return(__wrap_select, 0);
+
+    will_return(__wrap_FOREVER, 1);
+
+    will_return(__wrap_select, 4);
+    expect_function_call(__wrap_realtime_process);
+    will_return(__wrap_FOREVER, 0);
+
+    fim_run_realtime(NULL);
+}
+#else
+
+void test_fim_run_realtime_w_first_timeout(void **state) {
+    char debug_msg[OS_SIZE_128] = {0};
+    directory_t *dir_it;
+    int added_dirs = 0;
+
+    // set_priority_windows_thread
+    expect_string(__wrap__mdebug1, formatted_msg, "(6320): Setting process priority to: '10'");
+    will_return(wrap_GetCurrentThread, (HANDLE)123456);
+    expect_SetThreadPriority_call((HANDLE)123456, THREAD_PRIORITY_LOWEST, true);
+
+    will_return(__wrap_FOREVER, 1);
+
+    foreach_array(dir_it, syscheck.directories) {
+        if (dir_it->options & REALTIME_ACTIVE) {
+            expect_string(__wrap_realtime_adddir, dir, dir_it->path);
+            will_return(__wrap_realtime_adddir, 0);
+            added_dirs++;
+        }
+    }
+
+    snprintf(debug_msg, OS_SIZE_128, FIM_NUM_WATCHES, added_dirs);
+    expect_string(__wrap__mdebug2, formatted_msg, debug_msg);
+
+    expect_value(wrap_WaitForSingleObjectEx, hHandle, (DWORD)234);
+    expect_value(wrap_WaitForSingleObjectEx, dwMilliseconds, SYSCHECK_WAIT * 1000);
+    expect_value(wrap_WaitForSingleObjectEx, bAlertable, TRUE);
+    will_return(wrap_WaitForSingleObjectEx, WAIT_FAILED);
+
+    expect_string(__wrap__merror, formatted_msg, FIM_ERROR_REALTIME_WAITSINGLE_OBJECT);
+
+    will_return(__wrap_FOREVER, 0);
+
+    fim_run_realtime(NULL);
+}
+
+void test_fim_run_realtime_w_wait_success(void **state) {
+    char debug_msg[OS_SIZE_128] = {0};
+    directory_t *dir_it;
+    int added_dirs = 0;
+
+    // set_priority_windows_thread
+    expect_string(__wrap__mdebug1, formatted_msg, "(6320): Setting process priority to: '10'");
+    will_return(wrap_GetCurrentThread, (HANDLE)123456);
+    expect_SetThreadPriority_call((HANDLE)123456, THREAD_PRIORITY_LOWEST, true);
+
+    will_return(__wrap_FOREVER, 1);
+
+    foreach_array(dir_it, syscheck.directories) {
+        if (dir_it->options & REALTIME_ACTIVE) {
+            expect_string(__wrap_realtime_adddir, dir, dir_it->path);
+            will_return(__wrap_realtime_adddir, 0);
+            added_dirs++;
+        }
+    }
+
+    snprintf(debug_msg, OS_SIZE_128, FIM_NUM_WATCHES, added_dirs);
+    expect_string(__wrap__mdebug2, formatted_msg, debug_msg);
+
+    expect_value(wrap_WaitForSingleObjectEx, hHandle, (DWORD)234);
+    expect_value(wrap_WaitForSingleObjectEx, dwMilliseconds, SYSCHECK_WAIT * 1000);
+    expect_value(wrap_WaitForSingleObjectEx, bAlertable, TRUE);
+    will_return(wrap_WaitForSingleObjectEx, WAIT_IO_COMPLETION);
+
+    will_return(__wrap_FOREVER, 0);
+
+    fim_run_realtime(NULL);
+}
+
+void test_fim_run_realtime_w_sleep(void **state) {
+    char debug_msg[OS_SIZE_128] = {0};
+    directory_t *dir_it;
+    int added_dirs = 0;
+
+    // set_priority_windows_thread
+    expect_string(__wrap__mdebug1, formatted_msg, "(6320): Setting process priority to: '10'");
+    will_return(wrap_GetCurrentThread, (HANDLE)123456);
+    expect_SetThreadPriority_call((HANDLE)123456, THREAD_PRIORITY_LOWEST, true);
+
+    will_return(__wrap_FOREVER, 1);
+
+    foreach_array(dir_it, syscheck.directories) {
+        if (dir_it->options & REALTIME_ACTIVE) {
+            expect_string(__wrap_realtime_adddir, dir, dir_it->path);
+            will_return(__wrap_realtime_adddir, 0);
+        }
+    }
+
+    snprintf(debug_msg, OS_SIZE_128, FIM_NUM_WATCHES, added_dirs);
+    expect_string(__wrap__mdebug2, formatted_msg, debug_msg);
+    expect_value(wrap_Sleep, dwMilliseconds, SYSCHECK_WAIT * 1000);
+
+    will_return(__wrap_FOREVER, 0);
+
+    fim_run_realtime(NULL);
+}
 
 void test_fim_whodata_initialize_fail_set_policies(void **state)
 {
@@ -781,6 +1004,11 @@ int main(void) {
         cmocka_unit_test_setup_teardown(test_check_max_fps_no_sleep, setup_max_fps, teardown_max_fps),
         cmocka_unit_test_setup_teardown(test_check_max_fps_sleep, setup_max_fps, teardown_max_fps),
 #ifndef TEST_WINAGENT
+        cmocka_unit_test(test_fim_run_realtime_first_error),
+        cmocka_unit_test(test_fim_run_realtime_first_timeout),
+        cmocka_unit_test(test_fim_run_realtime_first_sleep),
+        cmocka_unit_test(test_fim_run_realtime_first_process),
+        cmocka_unit_test(test_fim_run_realtime_process_after_timeout),
         cmocka_unit_test_setup_teardown(test_fim_link_update, setup_symbolic_links, teardown_symbolic_links),
         cmocka_unit_test_setup_teardown(test_fim_link_update_already_added, setup_symbolic_links, teardown_symbolic_links),
         cmocka_unit_test_setup_teardown(test_fim_link_check_delete, setup_symbolic_links, teardown_symbolic_links),
@@ -792,6 +1020,10 @@ int main(void) {
         cmocka_unit_test_setup_teardown(test_fim_link_silent_scan, setup_symbolic_links, teardown_symbolic_links),
         cmocka_unit_test_setup_teardown(test_fim_link_reload_broken_link_already_monitored, setup_symbolic_links, teardown_symbolic_links),
         cmocka_unit_test_setup_teardown(test_fim_link_reload_broken_link_reload_broken, setup_symbolic_links, teardown_symbolic_links),
+#else
+        cmocka_unit_test_setup_teardown(test_fim_run_realtime_w_first_timeout, setup_hash, teardown_hash),
+        cmocka_unit_test_setup_teardown(test_fim_run_realtime_w_wait_success, setup_hash, teardown_hash),
+        cmocka_unit_test(test_fim_run_realtime_w_sleep),
 #endif
     };
 
