@@ -1413,6 +1413,10 @@ void test_realtime_adddir_max_limit_reached(void **state) {
 
     expect_function_call(__wrap_pthread_mutex_lock);
 
+    expect_value(__wrap_OSHash_Get_ex, self, syscheck.realtime->dirtb);
+    expect_string(__wrap_OSHash_Get_ex, key, "C:\\a\\path");
+    will_return(__wrap_OSHash_Get_ex, NULL);
+
     expect_value(__wrap_OSHash_Get_Elem_ex, self, syscheck.realtime->dirtb);
     will_return(__wrap_OSHash_Get_Elem_ex, 1024);
 
@@ -1430,12 +1434,7 @@ void test_realtime_adddir_duplicate_entry(void **state) {
     win32rtfim rtlocald = { .dir = "C:\\a\\path" };
     int ret;
 
-
-
     expect_function_call(__wrap_pthread_mutex_lock);
-
-    expect_value(__wrap_OSHash_Get_Elem_ex, self, syscheck.realtime->dirtb);
-    will_return(__wrap_OSHash_Get_Elem_ex, 128);
 
     expect_value(__wrap_OSHash_Get_ex, self, syscheck.realtime->dirtb);
     expect_string(__wrap_OSHash_Get_ex, key, "C:\\a\\path");
@@ -1456,9 +1455,6 @@ void test_realtime_adddir_duplicate_entry_non_existent_directory_valid_handle(vo
     int ret;
 
     expect_function_call(__wrap_pthread_mutex_lock);
-
-    expect_value(__wrap_OSHash_Get_Elem_ex, self, syscheck.realtime->dirtb);
-    will_return(__wrap_OSHash_Get_Elem_ex, 128);
 
     expect_value(__wrap_OSHash_Get_ex, self, syscheck.realtime->dirtb);
     expect_string(__wrap_OSHash_Get_ex, key, "C:\\a\\path");
@@ -1511,9 +1507,6 @@ void test_realtime_adddir_duplicate_entry_non_existent_directory_closed_handle(v
     expect_string(__wrap_OSHash_Delete_ex, key, "C:\\a\\path");
     will_return(__wrap_OSHash_Delete_ex, rtlocald);
 
-    expect_value(__wrap_OSHash_Get_Elem_ex, self, syscheck.realtime->dirtb);
-    will_return(__wrap_OSHash_Get_Elem_ex, 127);
-
     snprintf(debug_msg, OS_SIZE_128, FIM_REALTIME_CALLBACK, "C:\\a\\path");
     expect_string(__wrap__mdebug1, formatted_msg, debug_msg);
 
@@ -1529,9 +1522,6 @@ void test_realtime_adddir_duplicate_entry_non_existent_directory_invalid_handle(
     int ret;
 
     expect_function_call(__wrap_pthread_mutex_lock);
-
-    expect_value(__wrap_OSHash_Get_Elem_ex, self, syscheck.realtime->dirtb);
-    will_return(__wrap_OSHash_Get_Elem_ex, 128);
 
     expect_value(__wrap_OSHash_Get_ex, self, syscheck.realtime->dirtb);
     expect_string(__wrap_OSHash_Get_ex, key, "C:\\a\\path");

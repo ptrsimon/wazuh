@@ -40,6 +40,18 @@ void set_whodata_mode_changes();
 void fim_send_msg(char mq, const char * location, const char * msg);
 #ifdef WIN32
 DWORD WINAPI fim_run_realtime(__attribute__((unused)) void * args);
+
+typedef struct _win32rtfim {
+    HANDLE h;
+    OVERLAPPED overlap;
+
+    char *dir;
+    TCHAR buffer[65536];
+    unsigned int watch_status;
+} win32rtfim;
+
+extern void free_win32rtfim_data(win32rtfim *data);
+
 #else
 void * fim_run_realtime(__attribute__((unused)) void * args);
 #endif
@@ -227,24 +239,13 @@ static int teardown_max_fps(void **state) {
 
 #ifdef TEST_WINAGENT
 
-typedef struct _win32rtfim {
-    HANDLE h;
-    OVERLAPPED overlap;
-
-    char *dir;
-    TCHAR buffer[65536];
-    unsigned int watch_status;
-} win32rtfim;
-
-extern void free_win32rtfim_data(win32rtfim *data);
-
 static int setup_hash(void **state) {
     directory_t *dir_it;
     win32rtfim *rtlocald;
     rtlocald = calloc(1, sizeof(win32rtfim));
     foreach_array(dir_it, syscheck.directories) {
         if (dir_it->options & REALTIME_ACTIVE) {
-            OSHash_Add_ex(syscheck.realtime->dirtb, strdup(dir_it->path), rtlocald);
+            OSHash_Add_ex(syscheck.realtime->dirtb, dir_it->path, rtlocald);
         }
     }
     syscheck.realtime->evt = (HANDLE)234;
@@ -443,7 +444,6 @@ void test_fim_run_realtime_w_first_timeout(void **state) {
     will_return(wrap_GetCurrentThread, (HANDLE)123456);
     expect_SetThreadPriority_call((HANDLE)123456, THREAD_PRIORITY_LOWEST, true);
 
-    will_return(__wrap_FOREVER, 1);
 
     foreach_array(dir_it, syscheck.directories) {
         if (dir_it->options & REALTIME_ACTIVE) {
@@ -452,6 +452,7 @@ void test_fim_run_realtime_w_first_timeout(void **state) {
             added_dirs++;
         }
     }
+    will_return(__wrap_FOREVER, 1);
 
     snprintf(debug_msg, OS_SIZE_128, FIM_NUM_WATCHES, added_dirs);
     expect_string(__wrap__mdebug2, formatted_msg, debug_msg);
@@ -462,7 +463,13 @@ void test_fim_run_realtime_w_first_timeout(void **state) {
     will_return(wrap_WaitForSingleObjectEx, WAIT_FAILED);
 
     expect_string(__wrap__merror, formatted_msg, FIM_ERROR_REALTIME_WAITSINGLE_OBJECT);
-
+    foreach_array(dir_it, syscheck.directories) {
+        if (dir_it->options & REALTIME_ACTIVE) {
+            expect_string(__wrap_realtime_adddir, dir, dir_it->path);
+            will_return(__wrap_realtime_adddir, 0);
+            added_dirs++;
+        }
+    }
     will_return(__wrap_FOREVER, 0);
 
     fim_run_realtime(NULL);
@@ -478,7 +485,6 @@ void test_fim_run_realtime_w_wait_success(void **state) {
     will_return(wrap_GetCurrentThread, (HANDLE)123456);
     expect_SetThreadPriority_call((HANDLE)123456, THREAD_PRIORITY_LOWEST, true);
 
-    will_return(__wrap_FOREVER, 1);
 
     foreach_array(dir_it, syscheck.directories) {
         if (dir_it->options & REALTIME_ACTIVE) {
@@ -488,6 +494,8 @@ void test_fim_run_realtime_w_wait_success(void **state) {
         }
     }
 
+    will_return(__wrap_FOREVER, 1);
+
     snprintf(debug_msg, OS_SIZE_128, FIM_NUM_WATCHES, added_dirs);
     expect_string(__wrap__mdebug2, formatted_msg, debug_msg);
 
@@ -496,6 +504,13 @@ void test_fim_run_realtime_w_wait_success(void **state) {
     expect_value(wrap_WaitForSingleObjectEx, bAlertable, TRUE);
     will_return(wrap_WaitForSingleObjectEx, WAIT_IO_COMPLETION);
 
+    foreach_array(dir_it, syscheck.directories) {
+        if (dir_it->options & REALTIME_ACTIVE) {
+            expect_string(__wrap_realtime_adddir, dir, dir_it->path);
+            will_return(__wrap_realtime_adddir, 0);
+            added_dirs++;
+        }
+    }
     will_return(__wrap_FOREVER, 0);
 
     fim_run_realtime(NULL);
@@ -511,7 +526,6 @@ void test_fim_run_realtime_w_sleep(void **state) {
     will_return(wrap_GetCurrentThread, (HANDLE)123456);
     expect_SetThreadPriority_call((HANDLE)123456, THREAD_PRIORITY_LOWEST, true);
 
-    will_return(__wrap_FOREVER, 1);
 
     foreach_array(dir_it, syscheck.directories) {
         if (dir_it->options & REALTIME_ACTIVE) {
@@ -519,10 +533,19 @@ void test_fim_run_realtime_w_sleep(void **state) {
             will_return(__wrap_realtime_adddir, 0);
         }
     }
+    will_return(__wrap_FOREVER, 1);
 
     snprintf(debug_msg, OS_SIZE_128, FIM_NUM_WATCHES, added_dirs);
     expect_string(__wrap__mdebug2, formatted_msg, debug_msg);
     expect_value(wrap_Sleep, dwMilliseconds, SYSCHECK_WAIT * 1000);
+
+    foreach_array(dir_it, syscheck.directories) {
+        if (dir_it->options & REALTIME_ACTIVE) {
+            expect_string(__wrap_realtime_adddir, dir, dir_it->path);
+            will_return(__wrap_realtime_adddir, 0);
+            added_dirs++;
+        }
+    }
 
     will_return(__wrap_FOREVER, 0);
 

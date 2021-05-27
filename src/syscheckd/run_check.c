@@ -355,22 +355,20 @@ void start_daemon()
 #if defined WIN32
 DWORD WINAPI fim_run_realtime(__attribute__((unused)) void * args) {
     directory_t *dir_it;
-    int _base_line = 0;
-    set_priority_windows_thread();
-    while (FOREVER()) {
-        // Directories in Windows configured with real-time add recursive watches
-        foreach_array(dir_it, syscheck.directories) {
-            if (dir_it->options & REALTIME_ACTIVE) {
-                realtime_adddir(dir_it->path, dir_it, 0);
-            }
-        }
 
-        if (_base_line == 0) {
-            _base_line = 1;
-            if (syscheck.realtime != NULL) {
-                mdebug2(FIM_NUM_WATCHES, OSHash_Get_Elem_ex(syscheck.realtime->dirtb));
-            }
+    set_priority_windows_thread();
+    // Directories in Windows configured with real-time add recursive watches
+    foreach_array(dir_it, syscheck.directories) {
+        if (dir_it->options & REALTIME_ACTIVE) {
+            realtime_adddir(dir_it->path, dir_it, 0);
         }
+    }
+
+    if (syscheck.realtime != NULL) {
+        mdebug2(FIM_NUM_WATCHES, OSHash_Get_Elem_ex(syscheck.realtime->dirtb));
+    }
+
+    while (FOREVER()) {
 
 #ifdef WIN_WHODATA
         if (syscheck.realtime_change) {
@@ -386,20 +384,23 @@ DWORD WINAPI fim_run_realtime(__attribute__((unused)) void * args) {
         } else {
             sleep(SYSCHECK_WAIT);
         }
+
+        // Directories in Windows configured with real-time add recursive watches
+        foreach_array(dir_it, syscheck.directories) {
+            if (dir_it->options & REALTIME_ACTIVE) {
+                realtime_adddir(dir_it->path, dir_it, 0);
+            }
+        }
     }
 }
 
 #elif defined INOTIFY_ENABLED
 void *fim_run_realtime(__attribute__((unused)) void * args) {
-    int _base_line = 0;
-    while (FOREVER()) {
-        if (_base_line == 0) {
-            _base_line = 1;
-            if (syscheck.realtime != NULL) {
-                mdebug2(FIM_NUM_WATCHES, OSHash_Get_Elem_ex(syscheck.realtime->dirtb));
-            }
-        }
+    if (syscheck.realtime != NULL) {
+        mdebug2(FIM_NUM_WATCHES, OSHash_Get_Elem_ex(syscheck.realtime->dirtb));
+    }
 
+    while (FOREVER()) {
         if (syscheck.realtime && (syscheck.realtime->fd >= 0)) {
             log_realtime_status(1);
             struct timeval selecttime;
