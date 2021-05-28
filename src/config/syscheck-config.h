@@ -165,15 +165,31 @@ typedef enum fdb_stmt {
 typedef struct whodata_dir_status whodata_dir_status;
 #endif
 
+#ifndef WIN32
 typedef struct _rtfim {
     unsigned int queue_overflow:1;
     OSHash *dirtb;
-#ifndef WIN32
     int fd;
-#else
-    HANDLE evt;
-#endif
 } rtfim;
+
+#else
+
+typedef struct _rtfim {
+    unsigned int queue_overflow:1;
+    OSHash *dirtb;
+    HANDLE evt;
+} rtfim;
+
+typedef struct _win32rtfim {
+    HANDLE h;
+    OVERLAPPED overlap;
+
+    char *dir;
+    TCHAR buffer[65536];
+    unsigned int watch_status;
+} win32rtfim;
+
+#endif
 
 typedef enum fim_type {FIM_TYPE_FILE, FIM_TYPE_REGISTRY} fim_type;
 
@@ -366,6 +382,7 @@ typedef struct _config {
     unsigned int enable_whodata:1;  /* At least one directory configured with whodata */
     unsigned int enable_synchronization:1;    /* Enable database synchronization */
     unsigned int enable_registry_synchronization:1; /* Enable registry database synchronization */
+    unsigned int realtime_change:1;                    /* Variable to activate the change to realtime from a whodata monitoring*/
 
     directory_t **directories; /* List of directories to be monitored */
 
@@ -400,7 +417,6 @@ typedef struct _config {
 
     /* Windows only registry checking */
 #ifdef WIN32
-    unsigned int realtime_change:1;                    /* Variable to activate the change to realtime from a whodata monitoring*/
     registry_ignore *key_ignore;                       /* List of registry keys to ignore */
     registry_ignore_regex *key_ignore_regex;           /* Regex of registry keys to ignore */
     registry_ignore *value_ignore;                     /* List of registry values to ignore*/

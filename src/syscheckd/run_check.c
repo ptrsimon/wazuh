@@ -392,6 +392,7 @@ DWORD WINAPI fim_run_realtime(__attribute__((unused)) void * args) {
             }
         }
     }
+    return 0;
 }
 
 #elif defined INOTIFY_ENABLED
