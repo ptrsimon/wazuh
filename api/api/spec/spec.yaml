@@ -41,7 +41,7 @@ info:
     <SecurityDefinitions />
 
   version: '4.2.0'
-  x-revision: '40203'
+  x-revision: '40205'
   title: 'Wazuh API REST'
   license:
     name: 'GPL 2.0'
@@ -1652,7 +1652,7 @@ components:
                       type: string
                     date_end_master:
                       type: string
-                    total_agentinfo:
+                    n_synced_chunks:
                       type: integer
                       format: int32
                 last_sync_integrity:
@@ -3923,7 +3923,17 @@ components:
     limit:
       in: query
       name: limit
-      description: "Maximum number of elements to return"
+      description: "Maximum number of elements to return. Although up to 100.000 can be specified, it is recommended not to exceed 500 elements. Responses may be slower the more this number is exceeded. "
+      schema:
+        type: integer
+        format: int32
+        default: 500
+        minimum: 1
+        maximum: 100000
+    log_lines:
+      in: query
+      name: limit
+      description: "Maximum number of lines to return."
       schema:
         type: integer
         format: int32
@@ -7763,7 +7773,7 @@ paths:
                         last_sync_agentinfo:
                           date_start_master: "2019-01-11T18:52:57.72Z"
                           date_end_master: "2019-01-11T18:52:57.73Z"
-                          total_agentinfo: 1
+                          n_synced_chunks: 1
                         sync_integrity_free: true
                         last_sync_agentgroups:
                           date_end_master: "2019-01-11T18:52:51.56Z"
@@ -8782,7 +8792,7 @@ paths:
         - $ref: '#/components/parameters/wait_for_complete'
         - $ref: '#/components/parameters/node_id'
         - $ref: '#/components/parameters/offset'
-        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/log_lines'
         - $ref: '#/components/parameters/sort'
         - $ref: '#/components/parameters/search'
         - $ref: '#/components/parameters/tag'
@@ -10203,7 +10213,7 @@ paths:
         - $ref: '#/components/parameters/pretty'
         - $ref: '#/components/parameters/wait_for_complete'
         - $ref: '#/components/parameters/offset'
-        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/log_lines'
         - $ref: '#/components/parameters/sort'
         - $ref: '#/components/parameters/search'
         - $ref: '#/components/parameters/tag'

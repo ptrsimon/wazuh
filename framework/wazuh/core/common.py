@@ -148,6 +148,7 @@ EXECQ = os.path.join(wazuh_path, 'queue', 'alerts', 'execq')
 # Socket
 AUTHD_SOCKET = os.path.join(wazuh_path, 'queue', 'sockets', 'auth')
 REQUEST_SOCKET = os.path.join(wazuh_path, 'queue', 'sockets', 'request')
+WCOM_SOCKET = os.path.join(wazuh_path, 'queue', 'sockets', 'com')
 LOGTEST_SOCKET = os.path.join(wazuh_path, 'queue', 'sockets', 'logtest')
 UPGRADE_SOCKET = os.path.join(wazuh_path, 'queue', 'tasks', 'upgrade')
 
@@ -178,7 +179,7 @@ agent_info_sleep = 2  # Seconds between retries
 
 # Common variables
 database_limit = 500
-maximum_database_limit = 1000
+maximum_database_limit = 100000
 limit_seconds = 1800  # 600*3
 
 _ossec_uid = None
@@ -209,6 +210,7 @@ rbac: ContextVar[Dict] = ContextVar('rbac', default={'rbac_mode': 'black'})
 current_user: ContextVar[str] = ContextVar('current_user', default='')
 broadcast: ContextVar[bool] = ContextVar('broadcast', default=False)
 cluster_nodes: ContextVar[list] = ContextVar('cluster_nodes', default=list())
+cluster_integrity_mtime: ContextVar[Dict] = ContextVar('cluster_integrity_mtime', default={})
 
 _context_cache = dict()
 
