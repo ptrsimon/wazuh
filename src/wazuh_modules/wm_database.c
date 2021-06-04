@@ -304,7 +304,6 @@ void wm_sync_agents() {
             snprintf(id, 9, "%03d", agents[i]);
 
             if (OS_IsAllowedID(&keys, id) == -1) {
-                char full_name[FILE_SIZE + 1];
                 char *name = wdb_get_agent_name(agents[i], &wdb_wmdb_sock);
 
                 if (wdb_remove_agent(agents[i], &wdb_wmdb_sock) < 0) {

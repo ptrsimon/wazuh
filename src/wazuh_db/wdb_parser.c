@@ -196,6 +196,7 @@ int wdb_parse(char * input, char * output) {
     int agent_id = 0;
     char sagent_id[64] = "000";
     wdb_t * wdb;
+    wdb_t * wdb_global;
     cJSON * data;
     char * out;
     int result = 0;
@@ -241,16 +242,46 @@ int wdb_parse(char * input, char * output) {
 
         snprintf(sagent_id, sizeof(sagent_id), "%03d", agent_id);
 
-        if (wdb = wdb_open_agent2(agent_id), !wdb) {
-            merror("Couldn't open DB for agent '%s'", sagent_id);
-            snprintf(output, OS_MAXSTR + 1, "err Couldn't open DB for agent %d", agent_id);
-            return -1;
+        if (next = wstr_chr(query, ' '), next) {
+            *next++ = '\0';
         }
 
         mdebug2("Agent %s query: %s", sagent_id, query);
 
-        if (next = wstr_chr(query, ' '), next) {
-            *next++ = '\0';
+        if (strcmp(query, "remove") == 0) {
+            snprintf(output, OS_MAXSTR + 1, "ok");
+            result = 0;
+
+            w_mutex_lock(&pool_mutex);
+            if (wdb_remove_database(sagent_id) < 0) {
+                snprintf(output, OS_MAXSTR + 1, "err Cannot remove database");
+                result = -1;
+            }
+
+            w_mutex_unlock(&pool_mutex);
+            return result;
+        }
+
+        if (wdb_global = wdb_open_global(), !wdb_global) {
+            mdebug2("Couldn't open DB global: %s/%s.db", WDB2_DIR, WDB_GLOB_NAME);
+            snprintf(output, OS_MAXSTR + 1, "err Couldn't open DB global");
+            wdb_leave(wdb_global);
+
+            return -1;
+        }
+
+        if (wdb_global_agent_exists(wdb_global, agent_id) <= 0) {
+            mdebug2("No agent with id %s found.", sagent_id);
+            snprintf(output, OS_MAXSTR + 1, "err Agent not found");
+            wdb_leave(wdb_global);
+            return -1;
+        }
+        wdb_leave(wdb_global);
+
+        if (wdb = wdb_open_agent2(agent_id), !wdb) {
+            merror("Couldn't open DB for agent '%s'", sagent_id);
+            snprintf(output, OS_MAXSTR + 1, "err Couldn't open DB for agent %d", agent_id);
+            return -1;
         }
 
         if (strcmp(query, "syscheck") == 0) {
@@ -474,26 +505,6 @@ int wdb_parse(char * input, char * output) {
                     result = -1;
                 }
             }
-        } else if (strcmp(query, "remove") == 0) {
-            wdb_leave(wdb);
-            snprintf(output, OS_MAXSTR + 1, "ok");
-            result = 0;
-
-            w_mutex_lock(&pool_mutex);
-
-            if (wdb_close(wdb, FALSE) < 0) {
-                mdebug1("DB(%s) Cannot close database.", sagent_id);
-                snprintf(output, OS_MAXSTR + 1, "err Cannot close database");
-                result = -1;
-            }
-
-            if (wdb_remove_database(sagent_id) < 0) {
-                snprintf(output, OS_MAXSTR + 1, "err Cannot remove database");
-                result = -1;
-            }
-
-            w_mutex_unlock(&pool_mutex);
-            return result;
         } else if (strcmp(query, "begin") == 0) {
             if (wdb_begin2(wdb) < 0) {
                 mdebug1("DB(%s) Cannot begin transaction.", sagent_id);
