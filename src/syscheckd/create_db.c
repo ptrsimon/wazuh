@@ -1705,11 +1705,7 @@ void update_wildcards_config() {
             os_free(new_entry->path);
 
             new_entry->path = paths[i];
-#ifndef WIN32
-            if (CHECK_FOLLOW & new_entry->options) {
-                new_entry->symbolic_links = realpath(new_entry->path, NULL);
-            }
-#else
+#ifdef WIN32
             str_lowercase(new_entry->path);
 #endif
             new_entry->is_expanded = 1;
