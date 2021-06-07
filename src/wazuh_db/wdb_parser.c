@@ -242,11 +242,11 @@ int wdb_parse(char * input, char * output) {
 
         snprintf(sagent_id, sizeof(sagent_id), "%03d", agent_id);
 
+        mdebug2("Agent %s query: %s", sagent_id, query);
+
         if (next = wstr_chr(query, ' '), next) {
             *next++ = '\0';
         }
-
-        mdebug2("Agent %s query: %s", sagent_id, query);
 
         if (strcmp(query, "remove") == 0) {
             snprintf(output, OS_MAXSTR + 1, "ok");
