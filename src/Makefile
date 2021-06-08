@@ -1195,7 +1195,7 @@ endif
 ####################
 WAZUHEXT_LIB = libwazuhext.$(SHARED)
 WAZUH_LIB = libwazuhshared.$(SHARED)
-BUILD_LIBS = libwazuh.a $(WAZUHEXT_LIB)
+BUILD_LIBS = libwazuh.a $(WAZUHEXT_LIB) $(WAZUH_LIB)
 
 $(BUILD_SERVER) $(BUILD_AGENT) $(WINDOWS_BINS): $(BUILD_LIBS)
 
